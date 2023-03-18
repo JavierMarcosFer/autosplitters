@@ -5,7 +5,7 @@ state("PizzaTower")
 
 start
 {
-	return current.roomNumber == 757;
+	return current.roomNumber == 757 && old.roomNumber == 798;
 }
  
 split
