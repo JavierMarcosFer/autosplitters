@@ -43,6 +43,37 @@ startup
 		"boss_pizzafacefinale"
 	};
 	vars.lastLevelRooms = lastLevelRooms;
+
+	string[] levelKeyRooms = {
+		"tower_tutorial10",
+		"entrance_10",
+		"medieval_10",
+		"ruin_11",
+		"dungeon_10",
+		"badland_9",
+		"graveyard_6",
+		"farm_11",
+		"saloon_6",
+		"plage_cavern2",
+		"forest_john",
+		"space_9",
+		"minigolf_8",
+		"street_john",
+		"sewer_8",
+		"industrial_5",
+		"freezer_escape1",
+		"chateau_9",
+		"kidsparty_john",
+		"war_1",
+		"boss_pepperman",
+		"boss_vigilante",
+		"boss_noise",
+		"boss_fakepepkey",
+		"boss_pizzafacefinale"
+	};
+	vars.levelKeyRooms = levelKeyRooms;
+
+	vars.levelShouldSplit = false;
 }
 
 init
@@ -112,6 +143,17 @@ reset
 
 split
 {
-	return Array.IndexOf(vars.lastLevelRooms, old.RoomName) != -1 && Array.IndexOf(vars.hubRooms, current.RoomName) != -1
+	// enable splits only when the player has entered certain room inside the level, usually the pillar one
+	if (current.RoomName != old.RoomName && Array.IndexOf(vars.levelKeyRooms, current.RoomName) != -1) {
+		vars.levelShouldSplit = true;
+	}
+
+	// disable split when player goes back to the hub, this prevents early splits when just entering a level and deciding to leave
+	if (vars.levelShouldSplit && current.RoomName == old.RoomName && Array.IndexOf(vars.hubRooms, current.RoomName) != -1) {
+		vars.levelShouldSplit = false;
+	}
+
+	return vars.levelShouldSplit &&
+		(Array.IndexOf(vars.lastLevelRooms, old.RoomName) != -1 && Array.IndexOf(vars.hubRooms, current.RoomName) != -1)
 		|| old.RoomName == "tower_entrancehall" && current.RoomName == "rank_room";
 }
