@@ -4,6 +4,7 @@ startup
 {
 	settings.Add("il_mode", false, "Individual Level Mode");
 	settings.SetToolTip("il_mode", "The LiveSplit Game Time will show the level timer instead. Room splits WIP.");
+	settings.Add("helper_warn", true, "Suggest use of LiveSplit launch command when trying to use IGT");
 
 	// since v1.0.5951 there is a helper buffer for livesplit to read useful data easily
 	// use the launch command "-livesplit" in pizza tower to enable
@@ -248,9 +249,10 @@ split
 		vars.levelShouldSplit = false;
 	}
 
-	// normal end of level splits and accurate CTOP split using the livesplit buffer helper
+	// normal end of level splits, accurate CTOP split using the livesplit helper, and old version of the CTOP split that's ~0.3s late
 	return (vars.levelShouldSplit && Array.IndexOf(vars.lastLevelRooms, old.RoomName) != -1 && Array.IndexOf(vars.hubRooms, current.RoomName) != -1)
-		|| (vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && !vars.endLevelFadeExists.Old && current.RoomName == "tower_entrancehall");
+		|| (vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && vars.endLevelFadeExists.Old && current.RoomName == "tower_entrancehall")
+		|| (!vars.foundLiveSplitHelper && old.RoomName == "tower_entrancehall" && current.RoomName == "rank_room");
 }
 
 gameTime
@@ -272,4 +274,14 @@ gameTime
 isLoading
 {
 	return vars.foundLiveSplitHelper;
+}
+
+onStart
+{
+	// warn to the runner that this comparison won't work without the launch command if the helper hasn't been found yet
+	if (settings["helper_warn"] && timer.CurrentTimingMethod == TimingMethod.GameTime && !vars.foundLiveSplitHelper) {
+		MessageBox.Show(
+			"If you want to compare against Game Time, please use the \"-livesplit\" launch option for the game (since v1.0.5951).", 
+			"LiveSplit | Pizza Tower Autosplitter", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+	}
 }
