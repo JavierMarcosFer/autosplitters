@@ -18,6 +18,7 @@ startup
 	vars.finalRoomSplitEnabled = false;
 	vars.roomSplitsLock = new Stopwatch(); // prevent room splits to hapen when going immediately back a room
 	vars.roomSplitsLock.Start();
+	vars.lastSplitRoom = ""; // to avoid splitting when going back a room immediately combined with the stopwatch
 	vars.gameTimeSeconds = -1.0; // -1 until it's calculated from game memory
 	vars.gameTimeSubstraction = 0.0; // for ng+
 	vars.timerModel = new TimerModel { CurrentState = timer }; // to use the undo split function
@@ -128,7 +129,7 @@ startup
 init
 {
 
-	// sigscan for the game maker room name (to use without the buffer helper, legacy mode)
+	// sigscan for the game maker room name (general strategy for game maker games)
 	vars.gameMakerRoomNameScanThread = new Thread(() => {
 		var exe = modules.First();
 		var scn = new SignatureScanner(game, exe.BaseAddress, exe.ModuleMemorySize);
@@ -177,7 +178,7 @@ init
 
 	vars.foundLiveSplitHelper = false;
 
-	// thread that will look for the livesplit helper data
+	// thread that will look for the livesplit helper data (added by the pizza tower devs)
 	vars.livesplitBufferScanThread = new Thread(() => {
 
 		var abortTimer = new Stopwatch();
@@ -309,9 +310,10 @@ split
 	if (settings["il_mode"]) {
 
 		// split on a new room (with a 2 seconds lock), or when the end of level fade happens (helper feature only)
-		if (vars.roomSplitsLock.ElapsedMilliseconds > 2000 &&
+		if ((vars.roomSplitsLock.ElapsedMilliseconds > 2000 || current.RoomName != vars.lastSplitRoom) &&
 			 (old.RoomName != current.RoomName || vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && vars.endLevelFadeExists.Old)) {
 			vars.roomSplitsLock.Restart();
+			vars.lastSplitRoom = old.RoomName;
 			return true;
 		}
 
