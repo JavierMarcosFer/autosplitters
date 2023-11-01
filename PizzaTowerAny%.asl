@@ -288,11 +288,9 @@ reset
 {
 	if (
 		settings["il_mode"] &&
-		vars.foundLiveSplitHelper &&
-		vars.levelMinutes.Current * 60.0 + vars.levelSeconds.Current < vars.levelMinutes.Old * 60.0 + vars.levelSeconds.Old
+		(vars.foundLiveSplitHelper && vars.levelMinutes.Current * 60.0 + vars.levelSeconds.Current < vars.levelMinutes.Old * 60.0 + vars.levelSeconds.Old
 		||
-		current.RoomName != old.RoomName &&
-		Array.IndexOf(vars.hubRooms, current.RoomName) != -1) {
+		current.RoomName != old.RoomName &&	Array.IndexOf(vars.hubRooms, current.RoomName) != -1)) {
 			// hacky patch for wrong splits when picking restart level and getting an instant split, 65ms is ~4 frames which should be enough, these splits should take 1 frame
 			// only way this trigger is wrong would be by someone going to a new room then restarting level 4 frames after entering it...
 			if (vars.roomSplitsLock.ElapsedMilliseconds <= 65) {
@@ -324,15 +322,15 @@ split
 			vars.finalRoomSplitEnabled = true;
 		}
 
-		// disable split when player goes back to the hub, this prevents early splits when just entering a level and deciding to leave
-		if (vars.finalRoomSplitEnabled && current.RoomName == old.RoomName && Array.IndexOf(vars.hubRooms, current.RoomName) != -1) {
+		// disable split when player goes back to the hub or enters the rank screen, this prevents early splits when just entering a level and deciding to leave
+		if (vars.finalRoomSplitEnabled && current.RoomName == old.RoomName && (Array.IndexOf(vars.hubRooms, current.RoomName) != -1 || current.RoomName == "rank_room")) {
 			vars.finalRoomSplitEnabled = false;
 		}
 
-		// normal end of level splits, accurate CTOP split using the livesplit helper, and old version of the CTOP split that's ~0.3s late
+		// normal end of level split when exiting level, rank screen splits and accurate CTOP split using the livesplit helper
 		return (vars.finalRoomSplitEnabled && Array.IndexOf(vars.lastLevelRooms, old.RoomName) != -1 && Array.IndexOf(vars.hubRooms, current.RoomName) != -1)
-			|| (vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && !vars.endLevelFadeExists.Old && current.RoomName == "tower_entrancehall")
-			|| (!vars.foundLiveSplitHelper && old.RoomName == "tower_entrancehall" && current.RoomName == "rank_room");
+			|| (vars.finalRoomSplitEnabled && current.RoomName == "rank_room" && old.RoomName != "rank_room")
+			|| (vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && !vars.endLevelFadeExists.Old && current.RoomName == "tower_entrancehall");
 	} 
 }
 
