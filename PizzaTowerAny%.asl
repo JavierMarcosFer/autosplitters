@@ -15,11 +15,13 @@ startup
 	// use the launch command "-livesplit" in pizza tower to enable
 	// if not found, only use the room name features that can be used without the helper
 	vars.foundLiveSplitHelper = false;
-	vars.levelShouldSplit = false;
+	vars.finalRoomSplitEnabled = false;
 	vars.roomSplitsLock = new Stopwatch(); // prevent room splits to hapen when going immediately back a room
 	vars.roomSplitsLock.Start();
+	vars.lastSplitRoom = ""; // to avoid splitting when going back a room immediately combined with the stopwatch
 	vars.gameTimeSeconds = -1.0; // -1 until it's calculated from game memory
 	vars.gameTimeSubstraction = 0.0; // for ng+
+	vars.timerModel = new TimerModel { CurrentState = timer }; // to use the undo split function
 
 	string[] hubRooms = {
 		"tower_entrancehall",
@@ -60,6 +62,7 @@ startup
 		"boss_fakepepkey",
 		"boss_pizzafacefinale",
 		"trickytreat_1",
+		"secret_entrance",
 	};
 	vars.firstLevelRooms = firstLevelRooms;
 
@@ -118,7 +121,7 @@ startup
 		"boss_vigilante",
 		"boss_noise",
 		"boss_fakepepkey",
-		"boss_pizzafacefinale"
+		"boss_pizzafacefinale",
 	};
 	vars.levelKeyRooms = levelKeyRooms;
 }
@@ -126,7 +129,7 @@ startup
 init
 {
 
-	// sigscan for the game maker room name (to use without the buffer helper, legacy mode)
+	// sigscan for the game maker room name (general strategy for game maker games)
 	vars.gameMakerRoomNameScanThread = new Thread(() => {
 		var exe = modules.First();
 		var scn = new SignatureScanner(game, exe.BaseAddress, exe.ModuleMemorySize);
@@ -175,7 +178,7 @@ init
 
 	vars.foundLiveSplitHelper = false;
 
-	// thread that will look for the livesplit helper data
+	// thread that will look for the livesplit helper data (added by the pizza tower devs)
 	vars.livesplitBufferScanThread = new Thread(() => {
 
 		var abortTimer = new Stopwatch();
@@ -190,8 +193,8 @@ init
 
 		print("[ASL] [Helper Scan Thread] Starting the livesplit helper scan.");
 
-		// retry until it works, abort after 30 seconds
-		while (magicNumberAddress == IntPtr.Zero && !game.HasExited && abortTimer.ElapsedMilliseconds < 30000) {
+		// retry until it works, abort after 20 seconds
+		while (magicNumberAddress == IntPtr.Zero && !game.HasExited && abortTimer.ElapsedMilliseconds < 20000) {
 			foreach (var page in game.MemoryPages(true)) {
 				var scanner = new SignatureScanner(game, page.BaseAddress, (int)page.RegionSize);
 
@@ -249,13 +252,13 @@ update
 {
 	if (vars.foundLiveSplitHelper) {
 
-		if (settings["il_mode"]) {
-			vars.gameTimeSeconds = vars.levelMinutes.Current * 60 + vars.levelSeconds.Current;
-		} else {
-			vars.gameTimeSeconds = vars.fileMinutes.Current * 60 + vars.fileSeconds.Current;
-		}
-
 		vars.watchers.UpdateAll(game);
+
+		if (settings["il_mode"]) {
+			vars.gameTimeSeconds = vars.levelMinutes.Current * 60.0 + vars.levelSeconds.Current;
+		} else {
+			vars.gameTimeSeconds = vars.fileMinutes.Current * 60.0 + vars.fileSeconds.Current;
+		}
 	}
 
 	if (!vars.gameMakerRoomNameScanThread.IsAlive) {
@@ -273,7 +276,7 @@ start
 	}
 	else if (settings["ng_plus_mode"] && vars.foundLiveSplitHelper) {
 		// start when the IGT changed drastically in the first hallway, should only happen when opening a save file
-		var igtStepDiff = Math.Abs(vars.fileMinutes.Current * 60 + vars.fileSeconds.Current - vars.gameTimeSeconds);
+		double igtStepDiff = Math.Abs(vars.fileMinutes.Old * 60.0 + vars.fileSeconds.Old - vars.gameTimeSeconds);
 		return current.RoomName == "tower_entrancehall" && igtStepDiff > 1.0;
 	}
 	else {
@@ -283,13 +286,17 @@ start
 
 reset
 {
-	if (settings["il_mode"]) {
-		return 
-			vars.foundLiveSplitHelper && 
-			vars.levelMinutes.Current * 60 + vars.levelSeconds.Current < vars.levelMinutes.Old * 60 + vars.levelSeconds.Old 
-			||
-			current.RoomName != old.RoomName && 
-			Array.IndexOf(vars.hubRooms, current.RoomName) != -1;
+	if (
+		settings["il_mode"] &&
+		(vars.foundLiveSplitHelper && vars.levelMinutes.Current * 60.0 + vars.levelSeconds.Current < vars.levelMinutes.Old * 60.0 + vars.levelSeconds.Old
+		||
+		current.RoomName != old.RoomName &&	Array.IndexOf(vars.hubRooms, current.RoomName) != -1)) {
+			// hacky patch for wrong splits when picking restart level and getting an instant split, 65ms is ~4 frames which should be enough, these splits should take 1 frame
+			// only way this trigger is wrong would be by someone going to a new room then restarting level 4 frames after entering it...
+			if (vars.roomSplitsLock.ElapsedMilliseconds <= 65) {
+				vars.timerModel.UndoSplit();
+			}
+			return true;
 	}
 	else {
 		return old.RoomName != "Finalintro" && current.RoomName == "Finalintro";
@@ -301,9 +308,10 @@ split
 	if (settings["il_mode"]) {
 
 		// split on a new room (with a 2 seconds lock), or when the end of level fade happens (helper feature only)
-		if (vars.roomSplitsLock.ElapsedMilliseconds > 2000 &&
+		if ((vars.roomSplitsLock.ElapsedMilliseconds > 2000 || current.RoomName != vars.lastSplitRoom) &&
 			 (old.RoomName != current.RoomName || vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && vars.endLevelFadeExists.Old)) {
 			vars.roomSplitsLock.Restart();
+			vars.lastSplitRoom = old.RoomName;
 			return true;
 		}
 
@@ -311,18 +319,18 @@ split
 	else {
 		// enable splits only when the player has entered certain room inside the level, usually the pillar one
 		if (current.RoomName != old.RoomName && Array.IndexOf(vars.levelKeyRooms, current.RoomName) != -1) {
-			vars.levelShouldSplit = true;
+			vars.finalRoomSplitEnabled = true;
 		}
 
-		// disable split when player goes back to the hub, this prevents early splits when just entering a level and deciding to leave
-		if (vars.levelShouldSplit && current.RoomName == old.RoomName && Array.IndexOf(vars.hubRooms, current.RoomName) != -1) {
-			vars.levelShouldSplit = false;
+		// disable split when player goes back to the hub or enters the rank screen, this prevents early splits when just entering a level and deciding to leave
+		if (vars.finalRoomSplitEnabled && current.RoomName == old.RoomName && (Array.IndexOf(vars.hubRooms, current.RoomName) != -1 || current.RoomName == "rank_room")) {
+			vars.finalRoomSplitEnabled = false;
 		}
 
-		// normal end of level splits, accurate CTOP split using the livesplit helper, and old version of the CTOP split that's ~0.3s late
-		return (vars.levelShouldSplit && Array.IndexOf(vars.lastLevelRooms, old.RoomName) != -1 && Array.IndexOf(vars.hubRooms, current.RoomName) != -1)
-			|| (vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && vars.endLevelFadeExists.Old && current.RoomName == "tower_entrancehall" && current.RoomName == old.RoomName)
-			|| (!vars.foundLiveSplitHelper && old.RoomName == "tower_entrancehall" && current.RoomName == "rank_room");
+		// normal end of level split when exiting level, rank screen splits and accurate CTOP split using the livesplit helper
+		return (vars.finalRoomSplitEnabled && Array.IndexOf(vars.lastLevelRooms, old.RoomName) != -1 && Array.IndexOf(vars.hubRooms, current.RoomName) != -1)
+			|| (vars.finalRoomSplitEnabled && current.RoomName == "rank_room" && old.RoomName != "rank_room")
+			|| (vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && !vars.endLevelFadeExists.Old && current.RoomName == "tower_entrancehall");
 	} 
 }
 
@@ -342,8 +350,8 @@ isLoading
 
 onStart
 {
-	// warn to the runner that this comparison won't work without the launch command if the helper hasn't been found yet
-	if (settings["helper_warn"] && timer.CurrentTimingMethod == TimingMethod.GameTime && !vars.foundLiveSplitHelper) {
+	// warn to the runner that this comparison won't work without the launch command if the helper wasn't found
+	if (settings["helper_warn"] && timer.CurrentTimingMethod == TimingMethod.GameTime && !vars.foundLiveSplitHelper && !vars.livesplitBufferScanThread.IsAlive) {
 		MessageBox.Show(
 			"If you want to compare against Game Time, please use the \"-livesplit\" launch option for the game (available since v1.0.5951).", 
 			"LiveSplit | Pizza Tower Autosplitter", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
@@ -351,7 +359,7 @@ onStart
 
 	// substract the current igt if ng+ is enabled
 	if (settings["ng_plus_mode"] && vars.foundLiveSplitHelper) {
-		vars.gameTimeSubstraction = vars.fileMinutes.Current * 60 + vars.fileSeconds.Current;
+		vars.gameTimeSubstraction = vars.gameTimeSeconds;
 	} else {
 		vars.gameTimeSubstraction = 0.0;
 	}
