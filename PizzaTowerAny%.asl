@@ -327,10 +327,11 @@ split
 			vars.finalRoomSplitEnabled = false;
 		}
 
-		// normal end of level split when exiting level, rank screen splits and accurate CTOP split using the livesplit helper
+		// normal end of level split when exiting level, rank screen splits, accurate CTOP split using the livesplit helper, and ctop start split when doing the pizzaface skip
 		return (vars.finalRoomSplitEnabled && Array.IndexOf(vars.lastLevelRooms, old.RoomName) != -1 && Array.IndexOf(vars.hubRooms, current.RoomName) != -1)
 			|| (vars.finalRoomSplitEnabled && current.RoomName == "rank_room" && old.RoomName != "rank_room")
-			|| (vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && !vars.endLevelFadeExists.Old && current.RoomName == "tower_entrancehall");
+			|| (vars.foundLiveSplitHelper && vars.endLevelFadeExists.Current && !vars.endLevelFadeExists.Old && current.RoomName == "tower_entrancehall")
+			|| (current.RoomName == "tower_finalhallway" && old.RoomName == "tower_5" && !vars.pizzafaceSplitTriggered);
 	} 
 }
 
@@ -350,6 +351,7 @@ isLoading
 
 onStart
 {
+	vars.pizzafaceSplitTriggered = false;
 	// warn to the runner that this comparison won't work without the launch command if the helper wasn't found
 	if (settings["helper_warn"] && timer.CurrentTimingMethod == TimingMethod.GameTime && !vars.foundLiveSplitHelper && !vars.livesplitBufferScanThread.IsAlive) {
 		MessageBox.Show(
@@ -362,5 +364,12 @@ onStart
 		vars.gameTimeSubstraction = vars.gameTimeSeconds;
 	} else {
 		vars.gameTimeSubstraction = 0.0;
+	}
+}
+
+onSplit
+{
+	if (current.RoomName == "tower_finalhallway") {
+		vars.pizzafaceSplitTriggered = true;
 	}
 }
