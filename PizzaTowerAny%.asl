@@ -37,6 +37,7 @@ startup
 
 	string[] firstLevelRooms = {
 		"tower_tutorial1",
+		"tower_tutorial1N",
 		"entrance_1",
 		"medieval_1",
 		"ruin_1",
@@ -60,6 +61,7 @@ startup
 		"boss_vigilante",
 		"boss_noise",
 		"boss_fakepepkey",
+		"boss_pizzaface",
 		"boss_pizzafacefinale",
 		"trickytreat_1",
 		"secret_entrance",
@@ -69,6 +71,7 @@ startup
 	string[] lastLevelRooms = {
 		"rank_room",
 		"tower_tutorial1",
+		"tower_tutorial1N",
 		"entrance_1",
 		"medieval_1",
 		"ruin_1",
@@ -92,12 +95,14 @@ startup
 		"boss_vigilante",
 		"boss_noise",
 		"boss_fakepepkey",
+		"boss_pizzaface",
 		"boss_pizzafacefinale",
 	};
 	vars.lastLevelRooms = lastLevelRooms;
 
 	string[] levelKeyRooms = {
 		"tower_tutorial10",
+		"tower_tutorial3N",
 		"entrance_10",
 		"medieval_10",
 		"ruin_11",
@@ -121,6 +126,7 @@ startup
 		"boss_vigilante",
 		"boss_noise",
 		"boss_fakepepkey",
+		"boss_pizzaface",
 		"boss_pizzafacefinale",
 	};
 	vars.levelKeyRooms = levelKeyRooms;
